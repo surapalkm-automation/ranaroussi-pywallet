@@ -1,37 +1,45 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock
 import pandas as pd
-# Assuming the package is installed or in python path
-from yfinance.scrapers.history import History
+from yfinance.scrapers.history import PriceHistory
 
-class TestHistory(unittest.TestCase):
-    def test_history_null_response(self):
-        h = History("AAPL")
-        
-        # Patch the method that returns data to return None
-        with patch.object(h, '_download_history_data', return_value=None):
-            # This should not raise TypeError after the fix
-            try:
-                df = h.history()
-                # If we reach here, it returned something.
-                # After fix, we expect empty DataFrame
-                self.assertTrue(df.empty)
-            except TypeError as e:
-                self.fail(f"Raised TypeError: {e}")
-            except Exception as e:
-                self.fail(f"Raised unexpected exception: {e}")
+class TestPriceHistoryNull(unittest.TestCase):
+    def setUp(self):
+        self.mock_data = MagicMock()
+        self.ticker = "AAPL"
+        self.tz = "UTC"
 
-    def test_history_null_chart_result(self):
-        h = History("AAPL")
-        # Patch to return data with null result
-        bad_data = {"chart": {"result": None}}
+    def test_null_json_response(self):
+        # Scenario: data.json() returns None
+        mock_response = MagicMock()
+        mock_response.text = "null"
+        mock_response.json.return_value = None
+        self.mock_data.get.return_value = mock_response
+
+        ph = PriceHistory(self.mock_data, self.ticker, self.tz)
         
-        with patch.object(h, '_download_history_data', return_value=bad_data):
-            try:
-                df = h.history()
-                self.assertTrue(df.empty)
-            except TypeError as e:
-                self.fail(f"Raised TypeError: {e}")
+        # This should NOT raise TypeError anymore
+        try:
+            df = ph.history(period="1d")
+            self.assertTrue(df.empty)
+        except TypeError as e:
+            self.fail(f"Raised TypeError: {e}")
+
+    def test_null_chart_response(self):
+        # Scenario: data.json() returns {'chart': None}
+        mock_response = MagicMock()
+        mock_response.text = '{"chart": null}'
+        mock_response.json.return_value = {'chart': None}
+        self.mock_data.get.return_value = mock_response
+
+        ph = PriceHistory(self.mock_data, self.ticker, self.tz)
+        
+        # This should NOT crash
+        try:
+            df = ph.history(period="1d")
+            self.assertTrue(df.empty)
+        except TypeError as e:
+            self.fail(f"Raised TypeError: {e}")
 
 if __name__ == '__main__':
     unittest.main()
